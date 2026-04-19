@@ -18,4 +18,9 @@
   validate-registry
   {:doc      "Validate all registry entries locally (same checks as CI)"
    :requires ([bbum-marketplace.validate :as v])
-   :task     (v/run)}}}
+   :task     (v/run)}
+
+  count-stars
+  {:doc      "Recount star files and update :stars in library entries (run by CI)"
+   :requires ([bbum-marketplace.count-stars :as cs])
+   :task     (cs/run)}}}

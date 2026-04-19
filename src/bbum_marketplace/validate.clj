@@ -1,8 +1,11 @@
 (ns bbum-marketplace.validate
-  "Validate all registry entries. Used by the local dev task and mirrored in CI."
-  (:require [babashka.fs    :as fs]
-            [clojure.edn    :as edn]
-            [clojure.string :as str]))
+  "Validate all registry entries. Used by the local dev task and mirrored in CI.
+   Set env VERIFY_URLS=true to also check that each :git/url is reachable via
+   git ls-remote (used in CI; skipped locally by default)."
+  (:require [babashka.fs      :as fs]
+            [babashka.process :as proc]
+            [clojure.edn      :as edn]
+            [clojure.string   :as str]))
 
 ;;; Helpers
 
@@ -19,6 +22,25 @@
     {:ok (edn/read-string (slurp (str path)))}
     (catch Exception e
       {:err (str "EDN parse error: " (.getMessage e))})))
+
+;;; URL reachability check
+
+(defn- verify-url?
+  "True when the VERIFY_URLS environment variable is set to \"true\"."
+  []
+  (= "true" (System/getenv "VERIFY_URLS")))
+
+(defn- git-url-reachable?
+  "Return true if git ls-remote can reach url within 15 seconds."
+  [url]
+  (try
+    (let [{:keys [exit]}
+          (proc/sh {:extra-env {"GIT_TERMINAL_PROMPT" "0"}
+                    :timeout   15000}
+                   "git" "ls-remote" "--exit-code" url "HEAD")]
+      (zero? exit))
+    (catch Exception _
+      false)))
 
 ;;; Library entry validation
 
@@ -55,7 +77,13 @@
 
                        ;; :git/url must be a string
                        (and (:git/url ok) (not (string? (:git/url ok))))
-                       (conj ":git/url must be a string"))]
+                       (conj ":git/url must be a string")
+
+                       ;; URL reachability (opt-in via VERIFY_URLS=true)
+                       (and (verify-url?)
+                            (string? (:git/url ok))
+                            (not (git-url-reachable? (:git/url ok))))
+                       (conj (str ":git/url unreachable: " (:git/url ok))))]
         errors))))
 
 ;;; Star entry validation
