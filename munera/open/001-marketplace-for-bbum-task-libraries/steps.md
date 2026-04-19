@@ -1,25 +1,24 @@
 # Steps
 
-## Phase 1 — Registry scaffold + CI
+## Phase 1 — Registry scaffold + CI ✓
 
-- [ ] Create `registry/libraries/hugoduncan-bbum.edn` seed entry
-- [ ] Create `registry/libraries/hugoduncan-bbum-marketplace.edn` seed entry
-- [ ] Create `registry/stars/hugoduncan-bbum/.gitkeep`
-- [ ] Create `registry/stars/hugoduncan-bbum-marketplace/.gitkeep`
-- [ ] Write `.github/workflows/validate-pr.yml`:
+- [x] Create `registry/libraries/hugoduncan-bbum.edn` seed entry
+- [x] Create `registry/libraries/hugoduncan-bbum-marketplace.edn` seed entry
+- [x] Create `registry/stars/hugoduncan-bbum/.gitkeep`
+- [x] Create `registry/stars/hugoduncan-bbum-marketplace/.gitkeep`
+- [x] Write `.github/workflows/registry-pr.yml`:
   - trigger on PR affecting `registry/**`
-  - parse each changed library `.edn`: required keys, slug↔lib match, `:git/url` reachable
-  - parse each changed star `.edn`: required keys, parent slug has a library entry
-- [ ] Write `.github/workflows/count-stars.yml`:
-  - trigger on push to master
-  - for each library: count star files, update `:stars` if changed, commit + push
-- [ ] Write `.github/workflows/auto-merge-stars.yml`:
-  - trigger on PR open/sync
-  - guard: all changed paths under `registry/stars/` only
-  - if guard passes: approve + squash-merge
-- [ ] Write `bb.edn` dev tasks: `test`, `validate-registry`
-- [ ] Write `src/bbum_marketplace/validate.clj` — local registry validator (same logic as CI)
-- [ ] Run `validate-registry` locally against seed entries; confirm passes
+  - job `validate`: structural checks + URL reachability for changed library entries
+  - job `auto-merge-stars` (needs validate): guard checks only `registry/stars/**/*.edn`
+    changed; if so squash-merges via `gh pr merge`
+- [x] Write `.github/workflows/count-stars.yml`:
+  - trigger on push to master affecting `registry/**`
+  - runs `bb count-stars`; commits `🔄 update star counts` if anything changed
+- [x] Write `bb.edn` dev tasks: `test`, `validate-registry`, `count-stars`
+- [x] Write `src/bbum_marketplace/validate.clj` — structural validator + optional URL check
+      (`VERIFY_URLS=true` env; used by CI)
+- [x] Write `src/bbum_marketplace/count_stars.clj` — star file counter; updates `:stars`
+- [x] Run `validate-registry` locally against seed entries — passes
 
 ## Phase 2 — Publisher
 
