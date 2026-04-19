@@ -1,0 +1,7 @@
+{:lib          hugoduncan/bbum
+ :git/url      "https://github.com/hugoduncan/bbum"
+ :description  "A task package manager for babashka — install, update, and remove bb tasks from libraries"
+ :tags         ["package-manager" "babashka" "tasks" "cli"]
+ :stars        0
+ :submitted-by "hugoduncan"
+ :submitted-at "2026-04-19"}

@@ -1,0 +1,7 @@
+{:lib          hugoduncan/bbum-marketplace
+ :git/url      "https://github.com/hugoduncan/bbum-marketplace"
+ :description  "Central registry and discovery layer for bbum task libraries"
+ :tags         ["marketplace" "registry" "babashka" "tasks"]
+ :stars        0
+ :submitted-by "hugoduncan"
+ :submitted-at "2026-04-19"}
