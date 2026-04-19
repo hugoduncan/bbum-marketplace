@@ -86,11 +86,15 @@
   (let [[query & rest-args] *command-line-args*
         force (boolean (some #{"--refresh"} rest-args))]
     (when-not query
-      (throw (ex-info "Usage: bb marketplace:info <lib>" {})))
+      (println "Usage: bb marketplace:info <lib>")
+      (println "       <lib> is a lib name (e.g. hugoduncan/bbum) or slug (e.g. hugoduncan-bbum)")
+      (System/exit 0))
     (let [entries (cat/catalogue {:force force})
           entry   (find-entry query entries)]
       (when-not entry
-        (throw (ex-info (str "Library not found: " query) {:query query})))
+        (do (println (str "Library not found: " query))
+            (println "Run 'bb marketplace:list' to see available libraries.")
+            (System/exit 1)))
 
       (println)
       (print-entry entry)

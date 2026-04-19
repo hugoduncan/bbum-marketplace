@@ -142,11 +142,14 @@
   (check-gh!)
   (let [[query] *command-line-args*]
     (when-not query
-      (throw (ex-info "Usage: bb marketplace:star <lib>" {})))
+      (println "Usage: bb marketplace:star <lib>")
+      (System/exit 0))
     (let [entries     (cat/catalogue {})
           entry       (find-entry-by-query query entries)]
       (when-not entry
-        (throw (ex-info (str "Library not found in catalogue: " query) {:query query})))
+        (do (println (str "Library not found in catalogue: " query))
+            (println "Run 'bb marketplace:list' or 'bb marketplace:search <query>' to find libraries.")
+            (System/exit 1)))
       (let [lib-slug                    (util/lib->slug (:lib entry))
             {:keys [slug git-url project]} (local-project-info)
             project-slug                slug]

@@ -24,7 +24,8 @@
   (let [[query & rest-args] *command-line-args*
         force (boolean (some #{"--refresh"} rest-args))]
     (when-not query
-      (throw (ex-info "Usage: bb marketplace:search <query>" {})))
+      (println "Usage: bb marketplace:search <query>")
+      (System/exit 0))
     (let [entries (->> (cat/catalogue {:force force})
                        (filter (partial matches? query))
                        (sort-by (comp - (fnil :stars 0))))]
