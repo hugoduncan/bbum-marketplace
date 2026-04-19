@@ -1,0 +1,21 @@
+{:paths ["src" "test"]
+ :deps  {}
+ :tasks
+ {test
+  {:doc      "Run all tests"
+   :requires ([clojure.test :as t] [babashka.fs :as fs])
+   :task     (do (doseq [f (fs/glob "test" "**/*_test.clj")]
+                   (-> (str f)
+                       (clojure.string/replace "test/" "")
+                       (clojure.string/replace ".clj" "")
+                       (clojure.string/replace "/" ".")
+                       (clojure.string/replace "_" "-")
+                       symbol
+                       require))
+                 (let [r (t/run-all-tests (re-pattern "bbum-marketplace\\..*-test"))]
+                   (System/exit (if (pos? (+ (:fail r) (:error r))) 1 0))))}
+
+  validate-registry
+  {:doc      "Validate all registry entries locally (same checks as CI)"
+   :requires ([bbum-marketplace.validate :as v])
+   :task     (v/run)}}}
