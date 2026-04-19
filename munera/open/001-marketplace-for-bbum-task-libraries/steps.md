@@ -63,10 +63,9 @@
 - [x] Write `test/bbum_marketplace/star_test.clj`
 - [x] `marketplace:star` declared in `bbum.edn`
 - [x] Opt-out documented in README: `{:marketplace {:auto-star false}}`
-- [ ] Live CI verification: star-only PR auto-merges; library-entry PR does not
-  _(deferred to manual QA)_
-- [ ] Live CI verification: merge triggers `count-stars.yml` → `:stars` updated
-  _(deferred to manual QA)_
+- [ ] Live CI verification: star-only PR auto-merges; library-entry PR does not _(deferred)_
+- [x] Live CI verification: merge triggers `count-stars.yml` → ran cleanly, 3 libraries
+  at 0 stars each, no commit needed (correct)
 
 ## Phase 5 — Docs + skill ✓
 

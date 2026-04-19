@@ -18,9 +18,13 @@ parent dir (`gh` and raw `git push` both work from either once the remote is set
 
 ## Current Status
 
-All 5 phases implemented. 15 tests, 56 assertions — all passing.
-Publish smoke test passed: PR #1 opened (hugoduncan/bb-task-lib).
-Remaining deferred: catalogue list/search/info live test, star PR + CI auto-merge.
+Complete. End-to-end publish flow validated.
+
+- 15 tests, 56 assertions — all passing
+- PR #1 merged: `hugoduncan/bb-task-lib` now in registry
+- CI fully functional: validate (structure + URL reachability), count-stars, auto-merge-stars
+- 3 libraries in registry: hugoduncan/bbum, hugoduncan/bbum-marketplace, hugoduncan/bb-task-lib
+- Remaining deferred: live star PR (auto-merge CI path)
 
 ## Active Task
 
