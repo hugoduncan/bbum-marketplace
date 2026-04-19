@@ -38,7 +38,7 @@ jobs:
           echo "$changed_libs"
           failed=0
           while IFS= read -r f; do
-            url=$(bb -e "(-> \"$f\" slurp clojure.edn/read-string :git/url)")
+            url=$(bb -e "(println (-> \"$f\" slurp clojure.edn/read-string :git/url))")
             if [ -z "$url" ] || [ "$url" = "nil" ]; then
               echo "  SKIP  $f (no :git/url)"
               continue
