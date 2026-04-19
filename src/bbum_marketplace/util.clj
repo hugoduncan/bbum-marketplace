@@ -1,7 +1,8 @@
 (ns bbum-marketplace.util
-  "Shared utilities: slugs, HTTP, EDN, cache."
-  (:require [babashka.fs         :as fs]
+  "Shared utilities: slugs, HTTP, EDN, cache, table output."
+  (:require [babashka.fs          :as fs]
             [babashka.http-client :as http]
+            [cheshire.core        :as json]
             [clojure.edn          :as edn]
             [clojure.pprint       :as pprint]
             [clojure.string       :as str]))
@@ -84,13 +85,31 @@
                        {:url url :status (:status resp) :body (:body resp)}))))))
 
 (defn http-get-json
-  "GET url and parse response body as JSON using babashka.json."
+  "GET url and parse response body as JSON. Returns keywordized map/vec."
   ([url] (http-get-json url {}))
   ([url extra-headers]
-   (require '[cheshire.core :as json])
    (let [body (http-get url (merge {"Accept" "application/vnd.github+json"}
                                    extra-headers))]
-     ((resolve 'cheshire.core/parse-string) body true))))
+     (json/parse-string body keyword))))
+
+;; ── Table output ─────────────────────────────────────────────────────────────
+
+(defn print-table
+  "Print a fixed-width table to stdout.
+   headers — vector of string column headers.
+   rows    — seq of vectors matching headers arity."
+  [headers rows]
+  (let [widths   (reduce (fn [ws row]
+                           (mapv (fn [w cell] (max w (count (str cell))))
+                                 ws row))
+                         (mapv count headers)
+                         rows)
+        fmt-cell (fn [w cell] (format (str "%-" w "s") (str cell)))
+        sep      (fn [w] (apply str (repeat w \─)))]
+    (println (str/join "  " (mapv fmt-cell widths headers)))
+    (println (str/join "  " (mapv sep widths)))
+    (doseq [row rows]
+      (println (str/join "  " (mapv fmt-cell widths row))))))
 
 ;; ── Cache ─────────────────────────────────────────────────────────────────────
 
