@@ -1,6 +1,7 @@
 (ns bbum-marketplace.util-test
-  (:require [clojure.test              :refer [deftest testing is]]
-            [bbum-marketplace.util     :as util]))
+  (:require [clojure.test          :refer [deftest testing is]]
+            [babashka.fs           :as fs]
+            [bbum-marketplace.util :as util]))
 
 (deftest lib->slug-test
   (testing "simple qualified name"
@@ -27,9 +28,11 @@
 
 (deftest cache-roundtrip-test
   (testing "write then read returns the same data within TTL"
-    (util/write-cache {:libs ["a" "b"]})
-    (let [cached (util/read-cache)]
-      (is (= {:libs ["a" "b"]} cached)))))
+    (fs/with-temp-dir [tmpdir {:prefix "bbum-cache-test-"}]
+      (with-redefs [util/cache-path (constantly (str tmpdir "/cache.edn"))]
+        (util/write-cache {:libs ["a" "b"]})
+        (let [cached (util/read-cache)]
+          (is (= {:libs ["a" "b"]} cached)))))))
 
 (deftest has-push-access-test
   (testing "returns true when gh api reports push=true"

@@ -1,7 +1,8 @@
 (ns bbum-marketplace.catalogue-test
-  (:require [clojure.test              :refer [deftest testing is]]
+  (:require [clojure.test               :refer [deftest testing is]]
+            [babashka.fs                :as fs]
             [bbum-marketplace.catalogue :as cat]
-            [bbum-marketplace.util     :as util]))
+            [bbum-marketplace.util      :as util]))
 
 ;;; Private var access
 
@@ -70,18 +71,19 @@
             (cat/fetch-catalogue))))))
 
 (deftest catalogue-caches-result-test
-  (testing "second call without :force uses cache"
-    ;; Prime cache
-    (util/write-cache [{:lib 'test/lib :stars 1}])
-    (let [call-count (atom 0)]
-      (with-redefs [cat/fetch-catalogue (fn [] (swap! call-count inc) [])]
-        (cat/catalogue {})
-        (cat/catalogue {}))
-      (is (= 0 @call-count) "fetch-catalogue should not be called when cache is warm")))
+  (fs/with-temp-dir [tmpdir {:prefix "bbum-cat-cache-test-"}]
+    (with-redefs [util/cache-path (constantly (str tmpdir "/cache.edn"))]
+      (testing "second call without :force uses cache"
+        (util/write-cache [{:lib 'test/lib :stars 1}])
+        (let [call-count (atom 0)]
+          (with-redefs [cat/fetch-catalogue (fn [] (swap! call-count inc) [])]
+            (cat/catalogue {})
+            (cat/catalogue {}))
+          (is (= 0 @call-count) "fetch-catalogue should not be called when cache is warm")))
 
-  (testing ":force bypasses cache"
-    (util/write-cache [{:lib 'test/lib :stars 1}])
-    (let [call-count (atom 0)]
-      (with-redefs [cat/fetch-catalogue (fn [] (swap! call-count inc) [])]
-        (cat/catalogue {:force true}))
-      (is (= 1 @call-count) "fetch-catalogue should be called with :force true"))))
+      (testing ":force bypasses cache"
+        (util/write-cache [{:lib 'test/lib :stars 1}])
+        (let [call-count (atom 0)]
+          (with-redefs [cat/fetch-catalogue (fn [] (swap! call-count inc) [])]
+            (cat/catalogue {:force true}))
+          (is (= 1 @call-count) "fetch-catalogue should be called with :force true"))))))
