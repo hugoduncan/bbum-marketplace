@@ -5,8 +5,16 @@
 A central git-based registry and discovery layer for bbum task libraries. No server,
 no database — GitHub Actions and PRs are the only infrastructure.
 
+GitHub: https://github.com/hugoduncan/bbum-marketplace
+Remote: git@github.com:hugoduncan/bbum-marketplace.git
+
 Related project: `~/projects/hugoduncan/bbum/bbum-master/` — the bbum package manager
 that this marketplace extends.
+
+**Note:** the repo uses a git worktree layout — the bare `.git` dir lives at
+`~/projects/hugoduncan/bbum-marketplace/.git` and the working tree is at
+`~/projects/hugoduncan/bbum-marketplace/bbum-marketplace-master/`. Push from the
+parent dir (`gh` and raw `git push` both work from either once the remote is set).
 
 ## Current Status
 
