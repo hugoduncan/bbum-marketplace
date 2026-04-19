@@ -1,0 +1,102 @@
+name: Registry PR
+
+on:
+  pull_request:
+    paths:
+      - 'registry/**'
+
+jobs:
+  # ── Job 1: validate all touched registry entries ─────────────────────────
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Babashka
+        run: curl -s https://raw.githubusercontent.com/babashka/babashka/master/install | sudo bash
+
+      - name: Validate registry entries (structural)
+        run: bb validate-registry
+
+      - name: Verify :git/url reachability for changed library entries
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Collect only the library entries touched by this PR
+          changed_libs=$(gh api \
+            repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files \
+            --jq '.[].filename' \
+            | grep '^registry/libraries/.*\.edn$' || true)
+
+          if [ -z "$changed_libs" ]; then
+            echo "No library entries changed — skipping URL check"
+            exit 0
+          fi
+
+          echo "Checking git URL reachability for:"
+          echo "$changed_libs"
+          failed=0
+          while IFS= read -r f; do
+            url=$(bb -e "(-> \"$f\" slurp clojure.edn/read-string :git/url)")
+            if [ -z "$url" ] || [ "$url" = "nil" ]; then
+              echo "  SKIP  $f (no :git/url)"
+              continue
+            fi
+            echo -n "  checking $url ... "
+            if GIT_TERMINAL_PROMPT=0 timeout 15 git ls-remote --exit-code "$url" HEAD > /dev/null 2>&1; then
+              echo "ok"
+            else
+              echo "UNREACHABLE"
+              failed=1
+            fi
+          done <<< "$changed_libs"
+
+          exit $failed
+
+  # ── Job 2: auto-merge if the PR only adds star files ─────────────────────
+  auto-merge-stars:
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check whether PR only touches star files
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          files=$(gh api \
+            repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files \
+            --jq '.[].filename')
+
+          echo "Changed files:"
+          echo "$files"
+
+          # Allow only registry/stars/<slug>/<file>.edn
+          non_star=$(echo "$files" \
+            | grep -vE '^registry/stars/[^/]+/[^/]+\.edn$' || true)
+
+          if [ -n "$non_star" ]; then
+            echo ""
+            echo "Non-star files found (human review required):"
+            echo "$non_star"
+            echo "should_merge=false" >> "$GITHUB_OUTPUT"
+          else
+            echo ""
+            echo "All changed files are star entries — eligible for auto-merge"
+            echo "should_merge=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Auto-merge stars-only PR
+        if: steps.guard.outputs.should_merge == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr merge "$PR_NUMBER" \
+            --squash \
+            --repo "$GITHUB_REPOSITORY" \
+            --subject "⭐ auto-merge: stars PR #$PR_NUMBER"
