@@ -6,6 +6,7 @@
 
 (def ^:private normalise-git-url    @#'bbum-marketplace.publish/normalise-git-url)
 (def ^:private extract-github-owner @#'bbum-marketplace.publish/extract-github-owner)
+(def ^:private summarise-tasks      @#'bbum-marketplace.publish/summarise-tasks)
 (def ^:private build-entry          @#'bbum-marketplace.publish/build-entry)
 (def ^:private pr-body              @#'bbum-marketplace.publish/pr-body)
 
@@ -38,10 +39,33 @@
   (testing "nil returns nil"
     (is (nil? (extract-github-owner nil)))))
 
+;;; summarise-tasks
+
+(deftest summarise-tasks-test
+  (testing "extracts doc from each task"
+    (let [manifest {:lib   'acme/lib
+                    :tasks {:lint {:doc   "Run linting"
+                                   :files ["src/lint.clj"]
+                                   :task  '{:task (lint/run)}}
+                            :fmt  {:doc   "Format code"
+                                   :files ["src/fmt.clj"]
+                                   :task  '{:task (fmt/run)}}}}
+          result   (summarise-tasks manifest)]
+      (is (= {:lint {:doc "Run linting"} :fmt {:doc "Format code"}} result))))
+
+  (testing "skips tasks without :doc"
+    (let [manifest {:lib 'acme/lib :tasks {:hidden {:files ["x.clj"] :task '{}}}}
+          result   (summarise-tasks manifest)]
+      (is (empty? result))))
+
+  (testing "empty tasks gives empty map"
+    (is (= {} (summarise-tasks {:lib 'acme/lib :tasks {}})))))
+
 ;;; build-entry
 
 (deftest build-entry-test
-  (let [manifest {:lib 'hugoduncan/bbum :tasks {}}
+  (let [manifest {:lib   'hugoduncan/bbum
+                  :tasks {:test {:doc "Run tests"}}}
         entry    (build-entry manifest
                               "https://github.com/hugoduncan/bbum"
                               "hugoduncan"
@@ -56,7 +80,14 @@
     (testing "stars initialised to 0"
       (is (= 0 (:stars entry))))
     (testing "submitted-at is a date string"
-      (is (re-matches #"\d{4}-\d{2}-\d{2}" (:submitted-at entry))))))
+      (is (re-matches #"\d{4}-\d{2}-\d{2}" (:submitted-at entry))))
+    (testing "tasks are summarised into registry entry"
+      (is (= {:test {:doc "Run tests"}} (:tasks entry)))))
+
+  (testing "entry without tasks has no :tasks key"
+    (let [entry (build-entry {:lib 'acme/x :tasks {}}
+                             "https://github.com/acme/x" "acme" "desc" [])]
+      (is (not (contains? entry :tasks))))))
 
 ;;; pr-body
 

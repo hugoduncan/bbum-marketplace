@@ -92,14 +92,26 @@
 (defn- today []
   (str (java.time.LocalDate/now)))
 
+(defn- summarise-tasks
+  "Extract {task-kw {:doc \"...\"}} from bbum.edn :tasks.
+   Keeps only :doc so the registry entry stays compact and searchable."
+  [manifest]
+  (into {}
+        (keep (fn [[kw task-def]]
+                (when-let [doc (:doc task-def)]
+                  [kw {:doc doc}]))
+              (:tasks manifest {}))))
+
 (defn- build-entry [manifest git-url submitted-by description tags]
-  {:lib          (:lib manifest)
-   :git/url      git-url
-   :description  description
-   :tags         tags
-   :stars        0
-   :submitted-by submitted-by
-   :submitted-at (today)})
+  (let [tasks (summarise-tasks manifest)]
+    (cond-> {:lib          (:lib manifest)
+             :git/url      git-url
+             :description  description
+             :tags         tags
+             :stars        0
+             :submitted-by submitted-by
+             :submitted-at (today)}
+      (seq tasks) (assoc :tasks tasks))))
 
 ;; ── PR workflow ───────────────────────────────────────────────────────────────
 

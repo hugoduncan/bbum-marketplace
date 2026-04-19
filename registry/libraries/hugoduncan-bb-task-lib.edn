@@ -1,7 +1,12 @@
-{:lib hugoduncan/bb-task-lib,
- :git/url "https://github.com/hugoduncan/bb-task-lib",
- :description "General project tasks",
- :tags ["project"],
- :stars 0,
- :submitted-by "hugoduncan",
+{:lib          hugoduncan/bb-task-lib
+ :git/url      "https://github.com/hugoduncan/bb-task-lib"
+ :description  "General project tasks"
+ :tags         ["project"]
+ :tasks        {:ref-report   {:doc "Report public fns used only by tests and fns that could be private (requires clojure-lsp)"}
+                :file-lengths {:doc "Fail when any source file exceeds 800 lines (configurable). Args: [--max-lines N] [path ...]"}
+                :clj-kondo    {:doc "Lint with clj-kondo. Args: [--src] [--test] [--parallel] [--fail-level LEVEL] [--copy-configs [--classpath CP]] [paths...]"}
+                :cljfmt       {:doc "Check or fix formatting with cljfmt. Args: [check|fix] [--src] [--test] [--parallel] [--config FILE] [paths...]"}
+                :gordian      {:doc "Codebase architecture analysis with gordian (auto-installs via bbin if needed). Args: [command] [paths...] [options]"}}
+ :stars        0
+ :submitted-by "hugoduncan"
  :submitted-at "2026-04-19"}
