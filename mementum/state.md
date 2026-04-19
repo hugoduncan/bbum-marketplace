@@ -18,8 +18,9 @@ parent dir (`gh` and raw `git push` both work from either once the remote is set
 
 ## Current Status
 
-All 5 phases implemented. 14 tests, 53 assertions — all passing.
-Deferred: live smoke tests (require real `gh` + GitHub interaction).
+All 5 phases implemented. 15 tests, 56 assertions — all passing.
+Publish smoke test passed: PR #1 opened (hugoduncan/bb-task-lib).
+Remaining deferred: catalogue list/search/info live test, star PR + CI auto-merge.
 
 ## Active Task
 

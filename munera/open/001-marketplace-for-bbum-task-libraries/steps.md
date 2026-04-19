@@ -33,8 +33,8 @@
     prints PR URL
 - [x] Write `test/bbum_marketplace/publish_test.clj`
 - [x] Write `bbum.edn` declaring all marketplace tasks as a bbum task library
-- [ ] Smoke test: run `bb marketplace:publish` in this repo → verify PR → CI → merge
-  _(requires live GitHub interaction; deferred to manual QA)_
+- [x] Smoke test: `bb marketplace:publish` from `hugoduncan/bb-task-lib` → PR #1 opened ✓
+  (hit fork-owner error; fixed via `clone-for-pr!` in util.clj + bbum.edn :files restructure)
 
 ## Phase 3 — Consumer CLI ✓
 
