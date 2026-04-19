@@ -20,72 +20,57 @@
 - [x] Write `src/bbum_marketplace/count_stars.clj` — star file counter; updates `:stars`
 - [x] Run `validate-registry` locally against seed entries — passes
 
-## Phase 2 — Publisher
+## Phase 2 — Publisher ✓
 
-- [ ] Write `src/bbum_marketplace/util.clj`:
-  - `lib->slug`, `project->slug`
-  - `http-get` (babashka.http-client wrapper)
-  - `read-edn-str`
-- [ ] Write `src/bbum_marketplace/publish.clj`:
-  - read local `bbum.edn` (walk up from cwd)
-  - derive slug; build entry map; prompt for description + tags if absent
-  - check if entry already exists (GitHub API HEAD); offer update path
-  - write entry to temp dir; `gh pr create` → branch `publish/<slug>-<date>`
-  - print PR URL
-- [ ] Write `test/bbum_marketplace/publish_test.clj`
-- [ ] Add `marketplace:publish` task to `bbum.edn`
-- [ ] Smoke test: run `bb marketplace:publish` in this repo, verify PR opened against itself, CI passes, human merges
+- [x] Write `src/bbum_marketplace/util.clj`:
+  - `lib->slug`, `git-url->slug`, `http-get`, `http-get-json` (cheshire),
+    `read-edn-str`, `write-edn`, `find-file-upward`, `print-table`,
+    `cache-path`, `read-cache`, `write-cache`
+- [x] Write `src/bbum_marketplace/publish.clj`:
+  - reads local `bbum.edn`; derives slug, git URL, owner; prompts for
+    description + tags; checks entry existence via GitHub API HEAD;
+    forks + clones marketplace repo to temp dir; `gh pr create`;
+    prints PR URL
+- [x] Write `test/bbum_marketplace/publish_test.clj`
+- [x] Write `bbum.edn` declaring all marketplace tasks as a bbum task library
+- [ ] Smoke test: run `bb marketplace:publish` in this repo → verify PR → CI → merge
+  _(requires live GitHub interaction; deferred to manual QA)_
 
-## Phase 3 — Consumer CLI
+## Phase 3 — Consumer CLI ✓
 
-- [ ] Write `src/bbum_marketplace/catalogue.clj`:
-  - `fetch-catalogue`: GitHub contents API → fetch each `.edn` → parse → vec of maps
-  - `catalogue`: read cache (1hr TTL at `~/.bbum/marketplace-cache.edn`); fetch + write if miss
-  - respect `GITHUB_TOKEN` env for auth header; warn on 403/429
-- [ ] Write `test/bbum_marketplace/catalogue_test.clj` (mock HTTP responses)
-- [ ] Write `src/bbum_marketplace/list.clj`:
-  - parse `*command-line-args*` for `--sort stars|name|added` and `--tag TAG`
-  - fetch catalogue, sort + filter, print table (lib, description, tags, stars, url)
-- [ ] Write `src/bbum_marketplace/search.clj`:
-  - first positional arg = query string
-  - case-insensitive substring match against `:lib`, `:description`, `:tags`
-  - print same table as list
-- [ ] Write `src/bbum_marketplace/info.clj`:
-  - find entry by lib name or slug
-  - print full detail
-  - attempt live fetch of library's `bbum.edn` via GitHub raw API to list tasks
-  - print install hint: `bbum source add` + `bbum add` commands
-- [ ] Add `marketplace:catalogue`, `marketplace:list`, `marketplace:search`,
-  `marketplace:info` tasks to `bbum.edn`
-- [ ] Smoke test: `bb marketplace:list --sort stars`, `bb marketplace:search bbum`,
-  `bb marketplace:info hugoduncan/bbum`
+- [x] Write `src/bbum_marketplace/catalogue.clj`:
+  - `fetch-catalogue`: GitHub contents API → per-file raw fetch → EDN parse → sorted vec
+  - `catalogue`: cache (1hr TTL) → fetch if miss or `:force true`
+  - auth via `GITHUB_TOKEN` env; helpful error on API failure
+- [x] Write `test/bbum_marketplace/catalogue_test.clj` (with-redefs HTTP mocking)
+- [x] Write `src/bbum_marketplace/list.clj`:
+  - `--sort stars|name|added`, `--tag TAG`, `--refresh`; tabular output
+- [x] Write `src/bbum_marketplace/search.clj`:
+  - case-insensitive substring match on `:lib`, `:description`, `:tags`
+- [x] Write `src/bbum_marketplace/info.clj`:
+  - lookup by lib name or slug; full detail; live bbum.edn task fetch;
+    install hint
+- [x] All tasks declared in `bbum.edn`
+- [ ] Smoke test: live catalogue queries _(deferred to manual QA)_
 
-## Phase 4 — Auto-star
+## Phase 4 — Auto-star ✓
 
-- [ ] Write `src/bbum_marketplace/star.clj`:
-  - `run`: resolve lib by name/slug from catalogue; derive project slug from local git remote
-  - check if star file exists (GitHub API HEAD) — no-op + message if already starred
-  - write star file to temp; `gh pr create` → branch `star/<lib-slug>-<project-slug>`
-  - print PR URL
-  - `star-if-known [git-url]`: look up URL in catalogue; if found + not opted-out, call star
-    logic silently; print one-line notice
-- [ ] Write `test/bbum_marketplace/star_test.clj`
-- [ ] Add `marketplace:star` task to `bbum.edn`
-- [ ] Document opt-out in README: `{:marketplace {:auto-star false}}` in project `.bbum.edn`
-- [ ] Verify `auto-merge-stars.yml` guard: open a test PR touching a star file only → auto-merges;
-  open a PR touching a library entry → does not auto-merge
-- [ ] Verify `count-stars.yml`: merge a star PR → `:stars` updated in library entry
+- [x] Write `src/bbum_marketplace/star.clj`:
+  - `run`: find entry by name/slug; derive project slug from git remote;
+    check star existence; fork + clone; write star file; `gh pr create`
+  - `star-if-known [git-url]`: URL match → opt-out check → silent star;
+    best-effort, never crashes caller
+- [x] Write `test/bbum_marketplace/star_test.clj`
+- [x] `marketplace:star` declared in `bbum.edn`
+- [x] Opt-out documented in README: `{:marketplace {:auto-star false}}`
+- [ ] Live CI verification: star-only PR auto-merges; library-entry PR does not
+  _(deferred to manual QA)_
+- [ ] Live CI verification: merge triggers `count-stars.yml` → `:stars` updated
+  _(deferred to manual QA)_
 
-## Phase 5 — Docs + skill
+## Phase 5 — Docs + skill ✓
 
-- [ ] Write `README.md`:
-  - what it is, how publishers submit, how consumers install + use, how stars work
-  - opt-out instructions, GITHUB_TOKEN note, bbin install hint
-- [ ] Write `CONTRIBUTING.md`:
-  - PR guidelines, CI requirements, auto-merge policy, manual review triggers
-- [ ] Write `skills/bbum-marketplace/SKILL.md`:
-  - λ publish: reads bbum.edn → marketplace:publish → PR URL
-  - λ discover: marketplace:list / marketplace:search → source add → add
-  - λ star: marketplace:star → PR URL
-  - prerequisites: gh CLI, GITHUB_TOKEN (optional)
-- [ ] Final smoke test: full end-to-end from a fresh consumer project
+- [x] Write `README.md`
+- [x] Write `CONTRIBUTING.md`
+- [x] Write `skills/bbum-marketplace/SKILL.md`
+- [ ] Final end-to-end smoke test from a fresh consumer project _(deferred)_

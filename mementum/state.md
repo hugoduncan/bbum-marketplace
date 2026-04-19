@@ -18,11 +18,12 @@ parent dir (`gh` and raw `git push` both work from either once the remote is set
 
 ## Current Status
 
-Implementation plan written. Ready to start Phase 1.
+All 5 phases implemented. 14 tests, 53 assertions — all passing.
+Deferred: live smoke tests (require real `gh` + GitHub interaction).
 
 ## Active Task
 
-`munera/open/001-marketplace-for-bbum-task-libraries/` — full scope, 5 phases.
+`munera/open/001-marketplace-for-bbum-task-libraries/` — all code phases done.
 
 **plan.md** is now detailed — covers: exact file tree, concrete EDN schemas,
 namespace/function decompositions for all 6 Clojure namespaces, GitHub Actions
@@ -50,7 +51,27 @@ declarations, bb.edn dev tasks, phase sequencing.
 - `bbum.print/print-table` is the standard table renderer
 - Tests use `bbum.test-helpers` and private var access via `@#'`
 
+## Source files
+
+```
+src/bbum_marketplace/
+  util.clj       — slugs, HTTP, cache, print-table
+  validate.clj   — registry entry validator (local + CI)
+  count_stars.clj — star recounting (run by CI on push to master)
+  catalogue.clj  — GitHub API fetch + cache
+  list.clj       — bb marketplace:list
+  search.clj     — bb marketplace:search
+  info.clj       — bb marketplace:info
+  publish.clj    — bb marketplace:publish (opens PR to this repo)
+  star.clj       — bb marketplace:star + star-if-known auto-hook
+```
+
 ## Next Action
 
-Phase 1: create seed registry entries, write GitHub Actions workflows,
-write local `validate-registry` dev task. See steps.md.
+Run live smoke tests:
+1. `bb marketplace:publish` from a real library project → verify PR structure + CI pass
+2. `bb marketplace:list` → verify live catalogue fetch
+3. `bb marketplace:star hugoduncan/bbum` → verify star PR auto-merged by CI
+4. Verify `count-stars.yml` fires and updates `:stars` in library entry
+
+Then close the munera task.
