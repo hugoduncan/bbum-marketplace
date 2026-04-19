@@ -1,0 +1,7 @@
+{:lib hugoduncan/bb-task-lib,
+ :git/url "https://github.com/hugoduncan/bb-task-lib",
+ :description "General project tasks",
+ :tags ["project"],
+ :stars 0,
+ :submitted-by "hugoduncan",
+ :submitted-at "2026-04-19"}
