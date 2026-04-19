@@ -26,9 +26,10 @@ Complete. End-to-end publish flow validated.
 - 3 libraries in registry: hugoduncan/bbum, hugoduncan/bbum-marketplace, hugoduncan/bb-task-lib
 - Remaining deferred: live star PR (auto-merge CI path)
 
-## Active Task
+## Open Tasks
 
-`munera/open/001-marketplace-for-bbum-task-libraries/` — all code phases done.
+- `munera/open/001-marketplace-for-bbum-task-libraries/` — all code phases done; pending live smoke tests before close
+- `munera/open/002-one-star-per-github-user/` — new; enforce one star per GitHub user, prevent gaming
 
 **plan.md** is now detailed — covers: exact file tree, concrete EDN schemas,
 namespace/function decompositions for all 6 Clojure namespaces, GitHub Actions
