@@ -8,10 +8,10 @@
 
 (defn- parse-args
   "Parse *command-line-args* for --sort and --tag flags.
-   Returns {:sort :stars|:name|:added  :tag string|nil  :force bool}."
+   Returns {:sort-key :stars|:name|:added  :tag string|nil  :force bool}."
   [args]
   (loop [remaining args
-         result    {:sort :stars :tag nil :force false}]
+         result    {:sort-key :stars :tag nil :force false}]
     (if (empty? remaining)
       result
       (let [[flag & rest-args] remaining]
@@ -21,7 +21,7 @@
             (when-not (#{"stars" "name" "added"} val)
               (throw (ex-info (str "Unknown sort value: " val
                                    ". Expected: stars, name, added") {})))
-            (recur (rest rest-args) (assoc result :sort (keyword val))))
+            (recur (rest rest-args) (assoc result :sort-key (keyword val))))
 
           (= "--tag" flag)
           (recur (rest rest-args) (assoc result :tag (first rest-args)))
@@ -37,8 +37,8 @@
 ;;; Sorting
 
 (defn- sort-entries
-  "Sort a seq of entry maps by sort-key."
-  [entries sort-key]
+  "Sort entries by sort-key. Takes sort-key first so it composes cleanly with ->>"
+  [sort-key entries]
   (case sort-key
     :stars (sort-by (comp - (fnil :stars 0)) entries)
     :name  (sort-by (comp str :lib) entries)
@@ -47,8 +47,9 @@
 ;;; Filtering
 
 (defn- filter-by-tag
-  "Keep only entries whose :tags contain tag (case-insensitive)."
-  [entries tag]
+  "Keep only entries whose :tags contain tag (case-insensitive).
+   Takes tag first so it composes cleanly with ->>"
+  [tag entries]
   (if (nil? tag)
     entries
     (filter (fn [e]
@@ -67,13 +68,16 @@
 
 ;;; Entry point
 
-(defn run []
-  (let [{:keys [sort tag force]} (parse-args *command-line-args*)
-        entries (->> (cat/catalogue {:force force})
-                     (filter-by-tag tag)
-                     (sort-entries sort))]
-    (if (empty? entries)
-      (println "No libraries found.")
-      (util/print-table
-       ["library" "stars" "tags" "description"]
-       (map entry->row entries)))))
+(defn run
+  ([]               (run *command-line-args* cat/catalogue))
+  ([args]           (run args cat/catalogue))
+  ([args cat-fn]
+   (let [{:keys [sort-key tag force]} (parse-args args)
+         entries (->> (cat-fn {:force force})
+                      (filter-by-tag tag)
+                      (sort-entries sort-key))]
+     (if (empty? entries)
+       (println "No libraries found.")
+       (util/print-table
+        ["library" "stars" "tags" "description"]
+        (map entry->row entries))))))
