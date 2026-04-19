@@ -1,7 +1,8 @@
 (ns bbum-marketplace.util
-  "Shared utilities: slugs, HTTP, EDN, cache, table output."
+  "Shared utilities: slugs, HTTP, EDN, cache, table output, GitHub PR helpers."
   (:require [babashka.fs          :as fs]
             [babashka.http-client :as http]
+            [babashka.process     :as proc]
             [cheshire.core        :as json]
             [clojure.edn          :as edn]
             [clojure.pprint       :as pprint]
@@ -141,3 +142,40 @@
     (spit p (with-out-str
               (pprint/pprint {:cached-at (System/currentTimeMillis)
                               :data      data})))))
+
+;; ── GitHub PR helpers ─────────────────────────────────────────────────────────
+
+(defn has-push-access?
+  "Return true if the authenticated gh user has push access to repo
+   (e.g. \"hugoduncan/bbum-marketplace\"). Returns false on any error."
+  [repo]
+  (try
+    (let [{:keys [exit out]}
+          (proc/sh "gh" "api" (str "repos/" repo) "--jq" ".permissions.push")]
+      (and (zero? exit) (= "true" (str/trim out))))
+    (catch Exception _ false)))
+
+(defn clone-for-pr!
+  "Clone repo into tmpdir in a way that allows opening a PR.
+
+   - If the user has push access (owner / org member with write): clones the
+     upstream directly. Branches pushed here open same-repo PRs.
+   - Otherwise: forks then clones. Branches pushed here open cross-fork PRs.
+
+   Returns the absolute path to the cloned repo directory.
+   Throws ex-info on clone/fork failure."
+  [tmpdir repo]
+  (let [repo-name (last (str/split repo #"/"))
+        repo-dir  (str tmpdir "/" repo-name)]
+    (if (has-push-access? repo)
+      ;; ── Direct clone (owner / write access) ───────────────────────────────
+      (let [{:keys [exit err]}
+            (proc/sh {:dir tmpdir} "gh" "repo" "clone" repo)]
+        (when-not (zero? exit)
+          (throw (ex-info (str "Failed to clone " repo ": " err) {:repo repo}))))
+      ;; ── Fork then clone (external contributor) ────────────────────────────
+      (let [{:keys [exit err]}
+            (proc/sh {:dir tmpdir} "gh" "repo" "fork" repo "--clone")]
+        (when-not (zero? exit)
+          (throw (ex-info (str "Failed to fork/clone " repo ": " err) {:repo repo})))))
+    repo-dir))

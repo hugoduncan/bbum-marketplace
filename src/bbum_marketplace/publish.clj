@@ -117,39 +117,27 @@
              "_Submitted via `bb marketplace:publish`_"]))
 
 (defn- open-pr!
-  "Fork the marketplace repo to a temp dir, write the entry, and open a PR.
+  "Clone the marketplace repo to a temp dir, write the entry, and open a PR.
+   Handles both the owner (direct clone) and contributor (fork) cases.
    Returns the PR URL."
   [entry slug]
   (println (str "\nCloning marketplace repo (this may take a moment)..."))
   (fs/with-temp-dir [tmpdir {:prefix "bbum-mp-pub-"}]
-    (let [tmp     (str tmpdir)
-          repo-dir (str tmpdir "/bbum-marketplace")
-          branch  (str "publish/" slug "-" (today))
+    (let [repo-dir   (util/clone-for-pr! (str tmpdir) marketplace-repo)
+          branch     (str "publish/" slug "-" (today))
           entry-file (str "registry/libraries/" slug ".edn")]
 
-      ;; Fork + clone into tmpdir
-      (let [{:keys [exit err]}
-            (proc/sh {:dir tmp}
-                     "gh" "repo" "fork" marketplace-repo "--clone")]
-        (when-not (zero? exit)
-          (throw (ex-info (str "Failed to fork/clone marketplace repo: " err) {}))))
-
-      ;; Create branch
       (proc/shell {:dir repo-dir} "git" "checkout" "-b" branch)
 
-      ;; Write entry
       (spit (str repo-dir "/" entry-file)
             (with-out-str (pprint/pprint entry)))
 
-      ;; Commit
       (proc/shell {:dir repo-dir} "git" "add" entry-file)
       (proc/shell {:dir repo-dir}
                   "git" "commit" "-m" (str "publish: " (:lib entry)))
 
-      ;; Push
       (proc/shell {:dir repo-dir} "git" "push" "origin" branch)
 
-      ;; Open PR — gh detects the fork relationship automatically
       (let [{:keys [exit out err]}
             (proc/sh {:dir repo-dir}
                      "gh" "pr" "create"

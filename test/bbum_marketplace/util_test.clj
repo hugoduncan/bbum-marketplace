@@ -30,3 +30,16 @@
     (util/write-cache {:libs ["a" "b"]})
     (let [cached (util/read-cache)]
       (is (= {:libs ["a" "b"]} cached)))))
+
+(deftest has-push-access-test
+  (testing "returns true when gh api reports push=true"
+    (with-redefs [babashka.process/sh (fn [& _] {:exit 0 :out "true\n" :err ""})]
+      (is (true? (util/has-push-access? "owner/repo")))))
+
+  (testing "returns false when gh api reports push=false"
+    (with-redefs [babashka.process/sh (fn [& _] {:exit 0 :out "false\n" :err ""})]
+      (is (false? (util/has-push-access? "other/repo")))))
+
+  (testing "returns false on gh api error"
+    (with-redefs [babashka.process/sh (fn [& _] (throw (ex-info "no gh" {})))]
+      (is (false? (util/has-push-access? "any/repo"))))))

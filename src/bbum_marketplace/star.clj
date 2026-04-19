@@ -101,40 +101,28 @@
 ;; ── PR workflow ───────────────────────────────────────────────────────────────
 
 (defn- open-star-pr!
-  "Fork the marketplace repo, write the star file, and open a PR.
+  "Clone the marketplace repo, write the star file, and open a PR.
+   Handles both the owner (direct clone) and contributor (fork) cases.
    Returns the PR URL."
   [lib-slug project-slug star-entry lib]
   (println (str "\nCloning marketplace repo (this may take a moment)..."))
   (fs/with-temp-dir [tmpdir {:prefix "bbum-mp-star-"}]
-    (let [tmp       (str tmpdir)
-          repo-dir  (str tmpdir "/bbum-marketplace")
+    (let [repo-dir  (util/clone-for-pr! (str tmpdir) marketplace-repo)
           branch    (str "star/" lib-slug "-" project-slug)
           star-path (str "registry/stars/" lib-slug "/" project-slug ".edn")]
 
-      ;; Fork + clone
-      (let [{:keys [exit err]}
-            (proc/sh {:dir tmp}
-                     "gh" "repo" "fork" marketplace-repo "--clone")]
-        (when-not (zero? exit)
-          (throw (ex-info (str "Failed to fork/clone marketplace repo: " err) {}))))
-
-      ;; Ensure star dir exists
       (fs/create-dirs (fs/path repo-dir "registry" "stars" lib-slug))
 
-      ;; Write star file
       (spit (str repo-dir "/" star-path)
             (with-out-str (pprint/pprint star-entry)))
 
-      ;; Commit
       (proc/shell {:dir repo-dir} "git" "checkout" "-b" branch)
       (proc/shell {:dir repo-dir} "git" "add" star-path)
       (proc/shell {:dir repo-dir}
                   "git" "commit" "-m" (str "⭐ star: " lib))
 
-      ;; Push
       (proc/shell {:dir repo-dir} "git" "push" "origin" branch)
 
-      ;; PR
       (let [{:keys [exit out err]}
             (proc/sh {:dir repo-dir}
                      "gh" "pr" "create"
