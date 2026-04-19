@@ -1,0 +1,59 @@
+{:lib hugoduncan/bbum-marketplace
+
+ :tasks
+ {;; ── Shared internal tasks ─────────────────────────────────────────────────
+
+  :marketplace:util
+  {:doc   "Internal: shared utilities (not directly invocable)"
+   :files ["src/bbum_marketplace/util.clj"]}
+
+  ;; ── Publisher ─────────────────────────────────────────────────────────────
+
+  :marketplace:publish
+  {:doc     "Publish this library to the bbum marketplace (opens a PR)"
+   :files   ["src/bbum_marketplace/publish.clj"]
+   :depends [:marketplace:util]
+   :task    {:doc      "Publish this library to the bbum marketplace"
+             :requires ([bbum-marketplace.publish :as mp-pub])
+             :task     (mp-pub/run)}}
+
+  ;; ── Consumer CLI (added in Phase 3) ──────────────────────────────────────
+
+  :marketplace:catalogue
+  {:doc   "Internal: fetch and cache the registry catalogue"
+   :files ["src/bbum_marketplace/catalogue.clj"]
+   :depends [:marketplace:util]}
+
+  :marketplace:list
+  {:doc     "List available bbum task libraries"
+   :files   ["src/bbum_marketplace/list.clj"]
+   :depends [:marketplace:catalogue]
+   :task    {:doc      "List bbum task libraries [--sort stars|name|added] [--tag TAG]"
+             :requires ([bbum-marketplace.list :as mp-list])
+             :task     (mp-list/run)}}
+
+  :marketplace:search
+  {:doc     "Search bbum task libraries by name, description, or tag"
+   :files   ["src/bbum_marketplace/search.clj"]
+   :depends [:marketplace:catalogue]
+   :task    {:doc      "Search bbum task libraries: bb marketplace:search <query>"
+             :requires ([bbum-marketplace.search :as mp-search])
+             :task     (mp-search/run)}}
+
+  :marketplace:info
+  {:doc     "Show full detail for a bbum task library"
+   :files   ["src/bbum_marketplace/info.clj"]
+   :depends [:marketplace:catalogue]
+   :task    {:doc      "Show library detail: bb marketplace:info <lib>"
+             :requires ([bbum-marketplace.info :as mp-info])
+             :task     (mp-info/run)}}
+
+  ;; ── Starring ─────────────────────────────────────────────────────────────
+
+  :marketplace:star
+  {:doc     "Star a library in the bbum marketplace (opens a PR)"
+   :files   ["src/bbum_marketplace/star.clj"]
+   :depends [:marketplace:catalogue]
+   :task    {:doc      "Star a library: bb marketplace:star <lib>"
+             :requires ([bbum-marketplace.star :as mp-star])
+             :task     (mp-star/run)}}}}
