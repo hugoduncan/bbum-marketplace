@@ -89,6 +89,59 @@
                              "https://github.com/acme/x" "acme" "desc" [])]
       (is (not (contains? entry :tasks))))))
 
+;;; merge-entry
+
+(def ^:private merge-entry @#'bbum-marketplace.publish/merge-entry)
+(def ^:private diff-lines  @#'bbum-marketplace.publish/diff-lines)
+
+(deftest merge-entry-test
+  (let [existing {:lib          'acme/lib
+                  :git/url      "https://github.com/acme/lib"
+                  :description  "Old description"
+                  :tags         ["old"]
+                  :tasks        {:old-task {:doc "Old task"}}
+                  :stars        7
+                  :submitted-by "acme"
+                  :submitted-at "2025-01-01"}
+        new-entry {:lib          'acme/lib
+                   :git/url      "https://github.com/acme/lib"
+                   :description  "New description"
+                   :tags         ["new"]
+                   :tasks        {:new-task {:doc "New task"}}
+                   :stars        0
+                   :submitted-by "someone-else"
+                   :submitted-at "2026-04-19"}
+        merged    (merge-entry existing new-entry)]
+
+    (testing "mutable fields taken from new-entry"
+      (is (= "New description" (:description merged)))
+      (is (= ["new"] (:tags merged)))
+      (is (= {:new-task {:doc "New task"}} (:tasks merged))))
+
+    (testing "immutable fields preserved from existing"
+      (is (= 7           (:stars merged)))
+      (is (= "acme"      (:submitted-by merged)))
+      (is (= "2025-01-01" (:submitted-at merged))))))
+
+(deftest diff-lines-test
+  (let [base {:description "Old" :git/url "https://x" :tags ["a"]
+              :tasks {:lint {:doc "Lint"}}}]
+
+    (testing "no changes produces empty list"
+      (is (empty? (diff-lines base base))))
+
+    (testing "description change detected"
+      (let [result (diff-lines base (assoc base :description "New"))]
+        (is (some #(clojure.string/includes? % "description") result))))
+
+    (testing "task added detected"
+      (let [result (diff-lines base (assoc-in base [:tasks :fmt] {:doc "Format"}))]
+        (is (some #(clojure.string/includes? % "fmt") result))))
+
+    (testing "task removed detected"
+      (let [result (diff-lines base (update base :tasks dissoc :lint))]
+        (is (some #(clojure.string/includes? % "lint") result))))))
+
 ;;; pr-body
 
 (deftest pr-body-test
