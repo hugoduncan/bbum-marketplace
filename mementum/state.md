@@ -18,26 +18,39 @@ parent dir (`gh` and raw `git push` both work from either once the remote is set
 
 ## Current Status
 
-Project just created. One task open, nothing implemented yet.
+Implementation plan written. Ready to start Phase 1.
 
 ## Active Task
 
-`munera/open/001-marketplace-for-bbum-task-libraries/` — full scope task covering:
-- Registry data model (EDN per library, stars as files)
-- Publisher agent workflow (`bbum marketplace publish` → opens PR here)
-- Consumer CLI (`bbum marketplace list/search/info`)
-- Auto-star mechanic (triggered by `bbum add` when URL matches registry entry)
-- The extensions ship as a bbum task library installable from this repo
+`munera/open/001-marketplace-for-bbum-task-libraries/` — full scope, 5 phases.
 
-## Key Architecture Decisions (captured early)
+**plan.md** is now detailed — covers: exact file tree, concrete EDN schemas,
+namespace/function decompositions for all 6 Clojure namespaces, GitHub Actions
+workflow logic (validate-pr, count-stars, auto-merge-stars), bbum.edn task
+declarations, bb.edn dev tasks, phase sequencing.
 
-- Registry is git-native: `registry/libraries/<slug>.edn` + `registry/stars/<slug>/<project-id>.edn`
-- GitHub raw API for catalogue fetches; local cache with 1hr TTL
-- Extensions dogfood bbum — installable via `bbum add bbum-marketplace marketplace:list` etc.
-- Auto-star is opt-out via `.bbum.edn` `{:marketplace {:auto-star false}}`
-- Star PRs can be auto-merged by CI (stars-only PRs require no human review)
+## Key Architecture Decisions
+
+- Extensions are Babashka namespaces, installed via `bbum add` from this repo
+  (dogfoods bbum; no separate install step for consumers)
+- Registry: `registry/libraries/<slug>.edn` (one per lib) + `registry/stars/<slug>/<project-slug>.edn`
+- Slug = lib name with `/` → `-` (e.g. `hugoduncan/bbum` → `hugoduncan-bbum`)
+- GitHub raw API for catalogue fetches; 1hr TTL cache at `~/.bbum/marketplace-cache.edn`
+- Stars auto-merged by CI if PR only touches `registry/stars/` (no human review needed)
+- `count-stars.yml` fires on every push to master, keeps `:stars` accurate
+- Auto-star is opt-out: `{:marketplace {:auto-star false}}` in project `.bbum.edn`
+- Manual `marketplace:star` ships before any auto-hook into `bbum add`
+
+## bbum codebase notes (for extending)
+
+- `bbum.main` dispatches via `case` on first arg — `marketplace` subcommand
+  would need to be added there (Phase 4 / future upstream PR)
+- `bbum.config` handles all EDN I/O + rewrite-clj for `bb.edn` edits
+- `bbum.source` handles coord resolution + git cloning
+- `bbum.print/print-table` is the standard table renderer
+- Tests use `bbum.test-helpers` and private var access via `@#'`
 
 ## Next Action
 
-Start Phase 1: scaffold `registry/` directory tree, define EDN schemas, seed entries,
-wire GitHub Actions validation. See steps.md for the full checklist.
+Phase 1: create seed registry entries, write GitHub Actions workflows,
+write local `validate-registry` dev task. See steps.md.
