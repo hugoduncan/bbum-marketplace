@@ -4,11 +4,11 @@
 
 ;;; Private var access
 
-(def ^:private normalise-url          @#'bbum-marketplace.star/normalise-url)
-(def ^:private find-entry-by-query    @#'bbum-marketplace.star/find-entry-by-query)
-(def ^:private find-entry-by-url      @#'bbum-marketplace.star/find-entry-by-url)
-(def ^:private build-star-entry       @#'bbum-marketplace.star/build-star-entry)
-(def ^:private auto-star-enabled?     @#'bbum-marketplace.star/auto-star-enabled?)
+(def ^:private normalise-url       @#'bbum-marketplace.star/normalise-url)
+(def ^:private find-entry-by-query @#'bbum-marketplace.star/find-entry-by-query)
+(def ^:private find-entry-by-url   @#'bbum-marketplace.star/find-entry-by-url)
+(def ^:private build-star-request  @#'bbum-marketplace.star/build-star-request)
+(def ^:private auto-star-enabled?  @#'bbum-marketplace.star/auto-star-enabled?)
 
 ;;; Fixtures
 
@@ -54,17 +54,16 @@
   (testing "returns nil for unknown url"
     (is (nil? (find-entry-by-url "https://github.com/unknown/repo" entries)))))
 
-;;; build-star-entry
+;;; build-star-request
 
-(deftest build-star-entry-test
-  (let [entry (build-star-entry {:project "acme/my-project"
-                                 :git-url "https://github.com/acme/my-project"})]
-    (testing "required keys present"
-      (is (string? (:starred-at entry)))
-      (is (re-matches #"\d{4}-\d{2}-\d{2}" (:starred-at entry))))
-    (testing "optional keys set when provided"
-      (is (= "acme/my-project" (:project entry)))
-      (is (= "https://github.com/acme/my-project" (:git/url entry))))))
+(deftest build-star-request-test
+  (let [req (build-star-request)]
+    (testing ":starred-at is an ISO date string"
+      (is (string? (:starred-at req)))
+      (is (re-matches #"\d{4}-\d{2}-\d{2}" (:starred-at req))))
+    (testing "no identity or project fields — CI adds those"
+      (is (nil? (:github/user req)))
+      (is (nil? (:project req))))))
 
 ;;; auto-star-enabled? (reads from filesystem — test with mocked find-file-upward)
 
