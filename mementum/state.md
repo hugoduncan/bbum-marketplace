@@ -32,6 +32,10 @@ Core marketplace complete. Star integrity hardening implemented.
 - `munera/open/001-marketplace-for-bbum-task-libraries/` — all code phases done; pending live smoke tests before close
 - `munera/open/002-one-star-per-github-user/` — **implemented**; pending close
 
+## Recently Closed
+
+- `munera/closed/003-add-publisher-and-consumer-skills/` — `skills/bbum-publisher/` and `skills/bbum-consumer/` created; `skills/bbum-marketplace/` deleted
+
 **plan.md** is now detailed — covers: exact file tree, concrete EDN schemas,
 namespace/function decompositions for all 6 Clojure namespaces, GitHub Actions
 workflow logic (validate-pr, count-stars, auto-merge-stars), bbum.edn task
