@@ -42,25 +42,6 @@
   (let [target (normalise-url git-url)]
     (first (filter #(= target (normalise-url (:git/url %))) entries))))
 
-;; ── Local project introspection ───────────────────────────────────────────────
-
-(defn- local-git-url []
-  (try
-    (let [{:keys [exit out]} (proc/sh "git" "remote" "get-url" "origin")]
-      (when (zero? exit) (str/trim out)))
-    (catch Exception _ nil)))
-
-(defn- local-project-info []
-  (let [git-url (normalise-url (local-git-url))
-        slug    (when git-url (util/git-url->slug git-url))
-        owner   (when git-url
-                  (second (re-find #"github\.com/([^/]+)/" git-url)))
-        repo    (when git-url
-                  (last (str/split git-url #"/")))]
-    {:git-url git-url
-     :slug    (or slug "unknown-project")
-     :project (when (and owner repo) (str owner "/" repo))}))
-
 ;; ── Auto-star opt-out check ───────────────────────────────────────────────────
 
 (defn- auto-star-enabled?
@@ -74,61 +55,45 @@
         (catch Exception _ true))
       true)))
 
-;; ── Star file existence check ─────────────────────────────────────────────────
-
-(defn- star-exists?
-  "Check via GitHub API if a star file already exists. Returns true/false/:unknown."
-  [lib-slug project-slug]
-  (let [url (str "https://api.github.com/repos/" marketplace-repo
-                 "/contents/registry/stars/" lib-slug "/" project-slug ".edn")]
-    (try
-      (let [resp (babashka.http-client/get
-                  url {:headers {"Accept"     "application/vnd.github+json"
-                                 "User-Agent" "bbum-marketplace/1"}})]
-        (= 200 (:status resp)))
-      (catch Exception _ :unknown))))
-
-;; ── Star file content ─────────────────────────────────────────────────────────
+;; ── Star-request stub ─────────────────────────────────────────────────────────
 
 (defn- today []
   (str (java.time.LocalDate/now)))
 
-(defn- build-star-entry [{:keys [project git-url]}]
-  (cond-> {:starred-at (today)}
-    project (assoc :project project)
-    git-url (assoc :git/url git-url)))
+(defn- build-star-request []
+  {:starred-at (today)})
 
 ;; ── PR workflow ───────────────────────────────────────────────────────────────
 
 (defn- open-star-pr!
-  "Clone the marketplace repo, write the star file, and open a PR.
-   Handles both the owner (direct clone) and contributor (fork) cases.
+  "Clone the marketplace repo, write a star-request stub, and open a PR.
+   CI resolves the opener's GitHub identity and records the real star file.
    Returns the PR URL."
-  [lib-slug project-slug star-entry lib]
-  (println (str "\nCloning marketplace repo (this may take a moment)..."))
+  [lib-slug lib]
+  (println "\nCloning marketplace repo (this may take a moment)...")
   (fs/with-temp-dir [tmpdir {:prefix "bbum-mp-star-"}]
-    (let [repo-dir  (util/clone-for-pr! (str tmpdir) marketplace-repo)
-          branch    (str "star/" lib-slug "-" project-slug)
-          star-path (str "registry/stars/" lib-slug "/" project-slug ".edn")]
+    (let [repo-dir     (util/clone-for-pr! (str tmpdir) marketplace-repo)
+          branch       (str "star-request/" lib-slug)
+          request-path (str "registry/star-requests/" lib-slug ".edn")]
 
-      (fs/create-dirs (fs/path repo-dir "registry" "stars" lib-slug))
+      (fs/create-dirs (fs/path repo-dir "registry" "star-requests"))
 
-      (spit (str repo-dir "/" star-path)
-            (with-out-str (pprint/pprint star-entry)))
+      (spit (str repo-dir "/" request-path)
+            (with-out-str (pprint/pprint (build-star-request))))
 
       (proc/shell {:dir repo-dir} "git" "checkout" "-b" branch)
-      (proc/shell {:dir repo-dir} "git" "add" star-path)
+      (proc/shell {:dir repo-dir} "git" "add" request-path)
       (proc/shell {:dir repo-dir}
-                  "git" "commit" "-m" (str "⭐ star: " lib))
+                  "git" "commit" "-m" (str "⭐ star-request: " lib))
 
       (proc/shell {:dir repo-dir} "git" "push" "origin" branch)
 
       (let [{:keys [exit out err]}
             (proc/sh {:dir repo-dir}
                      "gh" "pr" "create"
-                     "--title" (str "⭐ star: " lib)
-                     "--body"  (str "Starring `" lib "` from `"
-                                    (or (:project star-entry) "unknown") "`")
+                     "--title" (str "⭐ star-request: " lib)
+                     "--body"  (str "Requesting a star for `" lib "`.\n\n"
+                                    "CI will verify your identity and record the star.")
                      "--repo"  marketplace-repo)]
         (if (zero? exit)
           (str/trim out)
@@ -144,34 +109,22 @@
     (when-not query
       (println "Usage: bb marketplace:star <lib>")
       (System/exit 0))
-    (let [entries     (cat/catalogue {})
-          entry       (find-entry-by-query query entries)]
+    (let [entries (cat/catalogue {})
+          entry   (find-entry-by-query query entries)]
       (when-not entry
-        (do (println (str "Library not found in catalogue: " query))
-            (println "Run 'bb marketplace:list' or 'bb marketplace:search <query>' to find libraries.")
-            (System/exit 1)))
-      (let [lib-slug                    (util/lib->slug (:lib entry))
-            {:keys [slug git-url project]} (local-project-info)
-            project-slug                slug]
+        (println (str "Library not found in catalogue: " query))
+        (println "Run 'bb marketplace:list' or 'bb marketplace:search <query>' to find libraries.")
+        (System/exit 1))
+      (let [lib-slug (util/lib->slug (:lib entry))]
         (println (str "Starring: " (:lib entry)))
-        (println (str "From:     " (or project git-url "unknown")))
-
-        ;; Check already starred
-        (let [exists (star-exists? lib-slug project-slug)]
-          (when (true? exists)
-            (println "\nAlready starred — no action needed.")
-            (System/exit 0))
-          (when (= :unknown exists)
-            (println "WARNING: Could not verify existing star (proceeding anyway).")))
-
-        (let [star-entry (build-star-entry {:project project :git-url git-url})
-              pr-url     (open-star-pr! lib-slug project-slug star-entry (:lib entry))]
-          (println (str "\n✓ Star PR opened: " pr-url)))))))
+        (let [pr-url (open-star-pr! lib-slug (:lib entry))]
+          (println (str "\n✓ Star request PR opened: " pr-url))
+          (println "CI will verify your identity and record the star — check the PR for status."))))))
 
 (defn star-if-known
   "Auto-star hook: called with the git URL of a just-installed library.
    Looks up the URL in the catalogue; if found and auto-star is not opted out,
-   opens a star PR silently. Prints a one-line notice on success."
+   opens a star-request PR. CI records the actual star. Prints a notice on success."
   [git-url]
   (when-not (auto-star-enabled?)
     (println "Auto-star disabled via .bbum.edn {:marketplace {:auto-star false}}")
@@ -180,15 +133,9 @@
     (let [entries (cat/catalogue {})
           entry   (find-entry-by-url git-url entries)]
       (when entry
-        (let [lib-slug                        (util/lib->slug (:lib entry))
-              {:keys [slug git-url project]}  (local-project-info)
-              project-slug                    slug
-              exists                          (star-exists? lib-slug project-slug)]
-          (when-not (true? exists)
-            (let [star-entry (build-star-entry {:project project :git-url git-url})
-                  pr-url     (open-star-pr! lib-slug project-slug
-                                            star-entry (:lib entry))]
-              (println (str "⭐ Starred " (:lib entry) " — PR: " pr-url)))))))
+        (let [lib-slug (util/lib->slug (:lib entry))
+              pr-url   (open-star-pr! lib-slug (:lib entry))]
+          (println (str "⭐ Star requested for " (:lib entry) " — PR: " pr-url)))))
     (catch Exception e
       ;; Auto-star is best-effort; never crash the caller
       (binding [*out* *err*]

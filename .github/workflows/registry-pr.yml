@@ -20,19 +20,25 @@ jobs:
         env:
           VERIFY_URLS: "true"
 
-  # ── Job 2: auto-merge if the PR only adds star files ─────────────────────
-  auto-merge-stars:
+  # ── Job 2: record a star from a star-request PR ───────────────────────────
+  #
+  # The client sends a minimal stub at registry/star-requests/<lib-slug>.edn.
+  # This job uses github.actor as the unforgeable identity anchor, checks for
+  # duplicates, then writes registry/stars/<lib-slug>/<actor>.edn directly to
+  # master and closes the stub PR.  No filename/content validation needed
+  # because CI is the sole author of star files.
+  record-star:
     runs-on: ubuntu-latest
-    needs: validate
     permissions:
       contents: write
       pull-requests: write
     steps:
-      - name: Check whether PR only touches star files
+      - name: Check whether PR is a star request
         id: guard
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          ACTOR: ${{ github.actor }}
         run: |
           files=$(gh api \
             repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files \
@@ -41,28 +47,95 @@ jobs:
           echo "Changed files:"
           echo "$files"
 
-          # Allow only registry/stars/<slug>/<file>.edn
-          non_star=$(echo "$files" \
-            | grep -vE '^registry/stars/[^/]+/[^/]+\.edn$' || true)
+          file_count=$(echo "$files" | grep -c . || true)
 
-          if [ -n "$non_star" ]; then
-            echo ""
-            echo "Non-star files found (human review required):"
-            echo "$non_star"
-            echo "should_merge=false" >> "$GITHUB_OUTPUT"
-          else
-            echo ""
-            echo "All changed files are star entries — eligible for auto-merge"
-            echo "should_merge=true" >> "$GITHUB_OUTPUT"
+          # Must be exactly one file under registry/star-requests/<slug>.edn
+          non_request=$(echo "$files" \
+            | grep -vE '^registry/star-requests/[^/]+\.edn$' || true)
+
+          if [ -n "$non_request" ] || [ "$file_count" != "1" ]; then
+            echo "Not a star-request PR — skipping record-star job."
+            echo "is_star_request=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-      - name: Auto-merge stars-only PR
-        if: steps.guard.outputs.should_merge == 'true'
+          lib_slug=$(echo "$files" \
+            | sed 's|registry/star-requests/||' \
+            | sed 's|\.edn||')
+
+          # Confirm the lib slug corresponds to a known library entry
+          lib_check=$(gh api \
+            repos/$GITHUB_REPOSITORY/contents/registry/libraries/$lib_slug.edn \
+            --jq '.name' 2>/dev/null || echo "")
+
+          if [ -z "$lib_check" ]; then
+            echo "Unknown library slug: $lib_slug — closing PR."
+            gh pr comment "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body "❌ Unknown library \`$lib_slug\` — no entry in \`registry/libraries/\`. Check \`bb marketplace:list\` for valid library names."
+            gh pr close "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
+            echo "is_star_request=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "is_star_request=true" >> "$GITHUB_OUTPUT"
+          echo "lib_slug=$lib_slug" >> "$GITHUB_OUTPUT"
+          echo "Star request: lib=$lib_slug actor=$ACTOR"
+
+      - name: Check for duplicate star
+        if: steps.guard.outputs.is_star_request == 'true'
+        id: dedup
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          ACTOR: ${{ github.actor }}
+          LIB_SLUG: ${{ steps.guard.outputs.lib_slug }}
         run: |
-          gh pr merge "$PR_NUMBER" \
-            --squash \
+          star_path="registry/stars/$LIB_SLUG/$ACTOR.edn"
+          exists=$(gh api \
+            repos/$GITHUB_REPOSITORY/contents/$star_path \
+            --jq '.name' 2>/dev/null || echo "")
+
+          if [ -n "$exists" ]; then
+            echo "already_starred=true" >> "$GITHUB_OUTPUT"
+            gh pr comment "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body "⭐ @$ACTOR has already starred \`$LIB_SLUG\` — no action needed."
+            gh pr close "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
+          else
+            echo "already_starred=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write star file directly to master
+        if: |
+          steps.guard.outputs.is_star_request == 'true' &&
+          steps.dedup.outputs.already_starred == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ACTOR: ${{ github.actor }}
+          LIB_SLUG: ${{ steps.guard.outputs.lib_slug }}
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git clone \
+            https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git \
+            mp-write
+          cd mp-write
+
+          mkdir -p "registry/stars/$LIB_SLUG"
+          today=$(date -u +%Y-%m-%d)
+
+          printf '{:github/user %s\n :starred-at  %s}\n' \
+            "\"$ACTOR\"" "\"$today\"" \
+            > "registry/stars/$LIB_SLUG/$ACTOR.edn"
+
+          git add "registry/stars/$LIB_SLUG/$ACTOR.edn"
+          git commit -m "⭐ star: $LIB_SLUG by $ACTOR"
+          git push origin master
+
+          gh pr comment "$PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --subject "⭐ auto-merge: stars PR #$PR_NUMBER"
+            --body "⭐ Star recorded for @$ACTOR! See \`registry/stars/$LIB_SLUG/$ACTOR.edn\` on master."
+          gh pr close "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
