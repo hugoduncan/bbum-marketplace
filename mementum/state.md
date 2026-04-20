@@ -18,18 +18,19 @@ parent dir (`gh` and raw `git push` both work from either once the remote is set
 
 ## Current Status
 
-Complete. End-to-end publish flow validated.
+Core marketplace complete. Star integrity hardening implemented.
 
-- 15 tests, 56 assertions — all passing
+- 34 tests, 150 assertions — all passing
 - PR #1 merged: `hugoduncan/bb-task-lib` now in registry
-- CI fully functional: validate (structure + URL reachability), count-stars, auto-merge-stars
+- CI: validate (structure + URL reachability), count-stars, record-star (replaces auto-merge-stars)
 - 3 libraries in registry: hugoduncan/bbum, hugoduncan/bbum-marketplace, hugoduncan/bb-task-lib
-- Remaining deferred: live star PR (auto-merge CI path)
+- Star flow: client sends stub to `registry/star-requests/<lib>.edn`; CI writes
+  `registry/stars/<lib>/<github-actor>.edn` directly to master — one star per GitHub user, enforced server-side
 
 ## Open Tasks
 
 - `munera/open/001-marketplace-for-bbum-task-libraries/` — all code phases done; pending live smoke tests before close
-- `munera/open/002-one-star-per-github-user/` — new; enforce one star per GitHub user, prevent gaming
+- `munera/open/002-one-star-per-github-user/` — **implemented**; pending close
 
 **plan.md** is now detailed — covers: exact file tree, concrete EDN schemas,
 namespace/function decompositions for all 6 Clojure namespaces, GitHub Actions

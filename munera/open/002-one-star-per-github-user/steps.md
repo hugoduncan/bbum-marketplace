@@ -2,43 +2,36 @@
 
 ## Phase 1 — Client (star.clj)
 
-- [ ] Change stub file path to `registry/star-requests/<lib-slug>.edn`
+- [x] Change stub file path to `registry/star-requests/<lib-slug>.edn`
       (was `registry/stars/<lib-slug>/<project-slug>.edn`)
-- [ ] Simplify `build-star-entry` — stub content: `{:starred-at "<date>"}`
-- [ ] Remove `gh api user --jq .login` from `run` and `star-if-known`
-- [ ] Update `star-exists?` — list `registry/stars/<lib-slug>/` via GitHub
-      contents API; return true if any file exists for current actor
-      OR simplify to always proceed (CI enforces; best-effort check optional)
-- [ ] Update PR branch name: `star-request/<lib-slug>`
-- [ ] Update PR title/body: "⭐ star-request: <lib>", note "CI will record star"
-- [ ] Update user messaging: "Star request submitted — CI records your star"
+- [x] Simplify `build-star-entry` → `build-star-request` — stub content: `{:starred-at "<date>"}`
+- [x] Remove `gh api user --jq .login` from `run` and `star-if-known`
+- [x] Drop client-side `star-exists?` — CI enforces; best-effort check removed
+- [x] Update PR branch name: `star-request/<lib-slug>`
+- [x] Update PR title/body: "⭐ star-request: <lib>", note "CI will record star"
+- [x] Update user messaging: "Star request submitted — CI records your star"
 
 ## Phase 2 — CI workflow (registry-pr.yml)
 
-- [ ] Add `record-star` job (parallel to or replacing `auto-merge-stars`):
-      - Step: identify changed files via `gh api` pulls files endpoint
-      - Step: guard — all files under `registry/star-requests/`; exactly one;
-              extract lib-slug; confirm lib-slug present in `registry/libraries/`
+- [x] Replace `auto-merge-stars` job with `record-star` job:
+      - Step: guard — all files under `registry/star-requests/`, exactly one,
+              extract lib-slug, confirm lib-slug in `registry/libraries/`
       - Step: dedup — check `registry/stars/<lib-slug>/${{ github.actor }}.edn`
-              exists on `main`; if yes, close PR with comment and exit
-      - Step: write star — `git checkout main`, write EDN, commit, push
-      - Step: close stub PR with success comment "⭐ star recorded for @<actor>"
-- [ ] Remove (or gate-off) old `auto-merge-stars` job
-- [ ] Confirm `count-stars.yml` fires on the direct-to-main push (it will)
+              on `main`; if exists, close PR with "already starred" comment
+      - Step: write star — fresh clone with write token, write EDN, commit to master
+      - Step: close stub PR with success comment
 
 ## Phase 3 — Tests
 
-- [ ] Extract guard/dedup/write logic into `bbum-marketplace.star-record` ns
-      (pure functions; no side effects; testable without GitHub)
-- [ ] Add `test/bbum_marketplace/star_record_test.clj`:
-      - valid star request → produces correct star file EDN
-      - duplicate (actor already in stars/) → returns :duplicate
-      - invalid path (not under star-requests/) → returns :invalid
-      - lib slug not in registry → returns :unknown-lib
-- [ ] Update `star_test.clj` for new stub path and simplified entry shape
-- [ ] Run full test suite — all green
+- [x] Add `bbum-marketplace.star-record` ns with pure functions:
+      `parse-star-request-path`, `star-file-path`, `lib-entry-path`,
+      `build-star-edn`, `validate-star-request`
+- [x] Add `test/bbum_marketplace/star_record_test.clj` — all cases covered
+- [x] Update `star_test.clj` — `build-star-request` (no args), drop `star-exists?`
+- [x] Update `validate.clj` — accept new star format (`:github/user`) and legacy (`:project`)
+- [x] Full test suite: 34 tests, 150 assertions — all green
 
 ## Done
 
 - [ ] Update `mementum/state.md`
-- [ ] Commit `🎯 one-star-per-github-user complete`
+- [ ] Close task
