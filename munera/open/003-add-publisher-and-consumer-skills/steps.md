@@ -2,5 +2,5 @@
 
 - [x] Delete `skills/bbum-marketplace/`
 - [x] Create `skills/bbum-consumer/SKILL.md` — install, discover, search, info, star
-- [ ] Create `skills/bbum-publisher/SKILL.md` — publish workflow; reference bbum-consumer for install
+- [x] Create `skills/bbum-publisher/SKILL.md` — publish workflow; reference bbum-consumer for install
 - [ ] Commit
