@@ -2,59 +2,66 @@
 
 ## Approach
 
+CI is the sole writer of star files.  The client sends a stub PR; the workflow
+resolves identity from `github.actor`, checks for duplicates, and commits the
+real star file directly to `main`.  This eliminates all client-side identity
+resolution and all filename/content validation in CI.
+
 Three coordinated changes:
 
-1. **`star.clj`** — client writes username-keyed files and `:github/user` field.
-2. **`auto-merge-stars.yml`** — CI gains a validation step that enforces
-   actor-matches-filename and rejects duplicate stars before merging.
-3. **Tests** — unit tests for the new validation logic; update existing star
-   tests to use the new file-naming scheme.
-
-Work bottom-up: tests → client → CI workflow.
+1. **`star.clj`** — stub file path, remove `gh api user` call, update messaging.
+2. **`registry-pr.yml`** — replace `auto-merge-stars` with `record-star` job
+   that writes the canonical star file directly to `main` and closes the stub PR.
+3. **Tests** — new `star-validate` namespace for pure CI logic; update existing
+   star tests.
 
 ## Phase Sequence
 
 ### Phase 1 — Client (`star.clj`)
 
-- Resolve GitHub username via `gh api user --jq .login`.
-- Use username as star filename.
-- Embed `:github/user` in the star EDN.
-- Update `star-exists?` to look up `<github-username>.edn`.
-- Update friendly messaging.
+- Change stub file path to `registry/star-requests/<lib-slug>.edn`.
+- Remove `gh api user --jq .login` (no longer needed for file generation).
+- Simplify `build-star-entry` — stub content is minimal.
+- Simplify `star-exists?` — can check `registry/stars/<lib-slug>/` via GitHub
+  API listing (no username needed) or drop the client-side check entirely
+  (CI enforces; best-effort only).
+- Update PR title/body/messaging.
 
-### Phase 2 — CI validation step
+### Phase 2 — CI workflow (`registry-pr.yml`)
 
-Add a `validate-star-pr` job (or step within `auto-merge-stars.yml`):
+Replace `auto-merge-stars` job with `record-star`:
 
 ```
-- Collect files changed in the PR (using git diff against main).
-- For each file:
-    - Confirm path matches registry/stars/<lib-slug>/<actor>.edn
-    - Confirm it is a new file (not an edit)
-    - Confirm :github/user in EDN == github.actor
-    - Confirm no existing registry/stars/<lib-slug>/<actor>.edn on main
-- On any failure: fail with descriptive message; suppress auto-merge.
+steps:
+  guard:   all files under registry/star-requests/; lib slug valid
+  dedup:   registry/stars/<lib-slug>/<actor>.edn absent on main
+  write:   commit star file directly to main (contents: write already present)
+  close:   close stub PR with success comment
 ```
 
-Uses only `gh`, `git`, and `bb` — no new dependencies.
+On duplicate: close PR with "already starred" comment, no write.
+On invalid path: fall through to validate + human review.
 
 ### Phase 3 — Tests
 
-- `test/bbum_marketplace/star_test.clj` — add cases:
-  - `star-filename` uses GitHub username
-  - `:github/user` present in built entry
-  - `star-exists?` checks correct path
-- New test namespace `test/bbum_marketplace/star_validate_test.clj` (or a
-  script exercised via `bb test`) covering the CI validation logic extracted
-  into a pure Clojure function in a new `bbum-marketplace.star-validate` ns.
+Extract the guard/dedup/write logic into `bbum-marketplace.star-record` (pure
+Clojure functions exercisable by `bb test`).  Test cases:
+
+- valid request → star file written
+- duplicate actor → rejected, no write
+- invalid path → falls through
+- lib slug not in registry → rejected
+
+### Cleanup
+
+- Remove `auto-merge-stars` job from `registry-pr.yml` (superseded).
+- The `validate` job continues to handle library-entry PRs unchanged.
 
 ## Risks
 
-- `gh api user` requires an authenticated session — same requirement as the
-  rest of the star flow; no new constraint.
-- Old project-slug star files already merged to `main` are benign: the
-  duplicate check is keyed on username, so they do not block future stars.
-  (Could be cleaned up later in a separate task.)
-- A user who is not the GitHub owner of the project they claim can still star —
-  we only verify *who opened the PR*, not who owns the project.  This is
-  intentional and sufficient to prevent multi-starring.
+- Direct push to `main` requires `contents: write` — already present in the
+  workflow.  Branch protection rules (if any) must permit bot pushes; currently
+  not enabled.
+- Stub PRs are closed, not merged — conventional but not the usual GitHub UX.
+  The success comment makes the outcome clear to the user.
+- `count-stars.yml` fires on every push to `main` already — no change needed.

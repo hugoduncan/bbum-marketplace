@@ -11,8 +11,8 @@ client-side star tool or by direct PRs.
 Currently a star file is keyed by *project slug* — derived from the starring
 project's git remote URL.  A determined user could create multiple throw-away
 repos (or rotate their project's remote URL) to inflate a library's star count.
-The PR opener's GitHub identity is the only trustworthy, unforgeable signal
-available in a GitHub Actions context.
+The PR opener's GitHub identity (`github.actor`) is the only trustworthy,
+unforgeable signal available in a GitHub Actions context.
 
 ### Current star path
 
@@ -20,83 +20,130 @@ available in a GitHub Actions context.
 registry/stars/<lib-slug>/<project-slug>.edn
 ```
 
-`project-slug` is the slugified git URL of the *starrring project*, not the
+`project-slug` is the slugified git URL of the *starring project*, not the
 GitHub username of the person running the tool.  Nothing in the current flow
 binds a star to a human identity.
 
 ## Constraints
 
-- No server/database.  Enforcement must be expressible in a GitHub Actions
-  workflow reading the repo tree plus the PR actor.
+- No server/database.  Enforcement must be expressible in GitHub Actions.
 - Must not break the happy path: a user with one legitimate project stars a
   library they actually use.
-- The auto-merge workflow (`auto-merge-stars.yml`) is the enforcement gate.
-  Client-side checks remain best-effort UX only.
-- `gh` CLI is always available in CI; `github.actor` is the PR opener's login.
+- `github.actor` is the unforgeable identity anchor.
 
 ## Design
 
-### Identity anchor: GitHub username
+### Key insight: CI is the sole writer of star files
 
-Replace (or supplement) the project-slug key with the **GitHub username** of
-the PR opener.  The star file path becomes:
+Rather than having the client write the canonical star file and CI validate that
+it matches the actor, CI *generates* the file.  This eliminates an entire
+validation class — a filename/content mismatch is impossible if CI is the only
+writer.
+
+### Flow
 
 ```
-registry/stars/<lib-slug>/<github-username>.edn
+Client                            Marketplace repo CI
+──────                            ─────────────────
+1. Open PR with stub file         2. Trigger: pull_request opened
+   registry/star-requests/           a. All changed files under
+   <lib-slug>.edn                       registry/star-requests/?
+   (content: minimal EDN)           b. Duplicate check:
+                                       registry/stars/<lib-slug>/
+                                       <actor>.edn exists on main?
+                                       → close PR with "already starred"
+                                    c. Write registry/stars/<lib-slug>/
+                                       <actor>.edn directly to main
+                                    d. Close stub PR with "⭐ starred"
 ```
 
-A user can only ever have one file per library slug.  Any second PR that would
-add another file from the same actor is rejected by CI.
+The stub PR is a **signal**, not a delivery vehicle.  It is always closed (not
+merged) — the real star file is committed directly to `main` by the workflow.
 
-### Star file content (extended)
+### Stub file
+
+```
+registry/star-requests/<lib-slug>.edn
+```
+
+Minimal content (informational only — CI never reads it for enforcement):
 
 ```edn
-{:github/user   "alice"
- :project       "alice/my-task-lib"   ; optional, informational
- :git/url       "https://github.com/alice/my-task-lib"
- :starred-at    "2026-04-19"}
+{:starred-at "2026-04-19"}
 ```
 
-`:github/user` is written by the client (from `gh api user --jq .login`) and
-**verified** by CI against `github.actor`.  Mismatch → PR rejected.
+The lib-slug is parsed from the file path.  The actor comes from `github.actor`.
+No `:github/user` field required; no client-side identity resolution needed.
 
-### CI enforcement (`auto-merge-stars.yml`)
+### Real star file (written by CI)
 
-Added validation step before auto-merge:
+```
+registry/stars/<lib-slug>/<github-actor>.edn
+```
 
-1. **Identify changed files** — ensure all are under `registry/stars/`.
-2. **For each changed file**:
-   a. Parse the filename to extract `<github-username>`.
-   b. Assert `<github-username> == github.actor`.  Mismatch → fail.
-   c. Assert the file is a pure addition (not overwriting another user's star).
-   d. Assert `:github/user` field in the EDN matches `github.actor`.
-3. **Duplicate check** — after the addition, `registry/stars/<lib-slug>/` must
-   contain at most one file named `<github-username>.edn`.  If a file already
-   exists on `main` with that name, reject the PR (already starred).
+```edn
+{:github/user  "alice"
+ :starred-at   "2026-04-19"}
+```
 
-Steps 2b and 2d together mean a user cannot forge another user's star even by
-sending a manual PR — the PR actor is the ground truth.
+`:project` and `:git/url` are omitted — they are not trustworthy from the client
+and not needed for the identity guarantee.
 
-### Client-side (star.clj) changes
+### CI workflow changes (`registry-pr.yml`)
 
-- Determine the local GitHub username: `gh api user --jq .login`.
-- Use `<github-username>` as the star filename (instead of project-slug).
-- Write `:github/user` into the star EDN.
-- `star-exists?` checks `registry/stars/<lib-slug>/<github-username>.edn`.
-- Friendly message if already starred: "You (alice) have already starred …".
+Replace the current `auto-merge-stars` job with a `record-star` job:
+
+1. **Guard** — all changed files are under `registry/star-requests/`; exactly
+   one file; filename matches a valid lib slug in `registry/libraries/`.
+   Otherwise: do nothing (let the validate + human-review path handle it).
+2. **Duplicate check** — `registry/stars/<lib-slug>/<actor>.edn` must not
+   exist on `main`.  If it does: close the PR with a comment "already starred".
+3. **Write star** — commit `registry/stars/<lib-slug>/<actor>.edn` directly to
+   `main` using the existing `contents: write` permission.
+4. **Close stub PR** — close (do not merge) the request PR with a success
+   comment.
+
+`count-stars.yml` already fires on every push to master → star counts stay
+accurate automatically.
+
+### Client-side (`star.clj`) changes
+
+- Change stub file path to `registry/star-requests/<lib-slug>.edn`.
+- Remove `gh api user --jq .login` call (no longer needed).
+- Remove `:github/user` from the stub EDN.
+- `star-exists?` still checks the GitHub API for
+  `registry/stars/<lib-slug>/<actor>.edn` as a best-effort pre-flight; it needs
+  `gh api user --jq .login` only for this check — or it can be skipped entirely
+  (CI enforces it regardless).
+- Update messaging: "Star request submitted — CI will record your star shortly."
+
+### Simplification delta vs. previous design
+
+| | Previous design | This design |
+|---|---|---|
+| Client resolves own GitHub username | Required | Not required |
+| Client constructs star filename | Required | Not required |
+| CI validates filename == actor | Required | Eliminated |
+| CI validates EDN field == actor | Required | Eliminated |
+| CI checks duplicate | Required | Required |
+| CI writes star file | No | Yes (direct push to main) |
+
+The validation that disappears (filename/field matching actor) was only needed
+because the client was writing the file.  Removing client authorship removes the
+attack surface entirely.
 
 ## Acceptance Criteria
 
-1. Star files are named `<github-username>.edn`; `:github/user` is present.
-2. A PR that adds a star file whose name does not match `github.actor` is
-   rejected by CI with a clear error message.
-3. A PR opened by a user who already has a merged star file for that library
-   is rejected by CI.
-4. A user who has already starred cannot game the system by:
+1. A star PR opened by `alice` results in `registry/stars/<lib-slug>/alice.edn`
+   on `main`, written by CI, containing `{:github/user "alice" …}`.
+2. A second star PR from `alice` for the same library is rejected by CI with a
+   clear comment; no duplicate file is written.
+3. A user cannot game the system by:
    - Changing their project's git URL.
-   - Creating a second project.
-   - Manually crafting a PR with a different filename.
-5. Existing star files (project-slug scheme) remain valid; migration is not
-   required for the initial implementation (old files are ignored by the
-   duplicate check).
-6. All existing tests continue to pass; new tests cover the CI validation logic.
+   - Creating extra repos.
+   - Manually crafting a PR with a different stub path.
+   (All result in at most one star file keyed to their `github.actor` identity.)
+4. The client sends only a stub — it never writes to `registry/stars/`.
+5. Existing star files (project-slug scheme) are unaffected.
+6. All existing tests pass; new tests cover the CI record-star logic extracted
+   into a testable Clojure namespace.
