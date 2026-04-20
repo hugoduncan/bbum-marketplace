@@ -176,6 +176,27 @@ bbum add bbum-marketplace marketplace:list marketplace:search marketplace:info m
 
 ---
 
+## AI Skills
+
+Agent skills for publishing to and consuming from the marketplace are available via the
+[skills CLI](https://github.com/vercel-labs/skills):
+
+```sh
+# install all bbum-marketplace skills
+npx skills add hugoduncan/bbum-marketplace
+
+# install a specific skill
+npx skills add hugoduncan/bbum-marketplace --skill bbum-publisher
+npx skills add hugoduncan/bbum-marketplace --skill bbum-consumer
+```
+
+| Skill | Description |
+|-------|-------------|
+| `bbum-publisher` | Publishing a bbum task library to the marketplace |
+| `bbum-consumer` | Discovering, installing, and starring libraries from the marketplace |
+
+---
+
 ## Related
 
 - [bbum](https://github.com/hugoduncan/bbum) — the task package manager that this
