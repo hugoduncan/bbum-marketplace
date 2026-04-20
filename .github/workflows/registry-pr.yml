@@ -92,11 +92,11 @@ jobs:
           LIB_SLUG: ${{ steps.guard.outputs.lib_slug }}
         run: |
           star_path="registry/stars/$LIB_SLUG/$ACTOR.edn"
-          exists=$(gh api \
-            repos/$GITHUB_REPOSITORY/contents/$star_path \
-            --jq '.name' 2>/dev/null || echo "")
 
-          if [ -n "$exists" ]; then
+          # Use exit code, not parsed output — gh api --jq outputs the string
+          # "null" on a 404 response body, which is non-empty and would cause a
+          # false positive if tested with [ -n "$output" ].
+          if gh api "repos/$GITHUB_REPOSITORY/contents/$star_path" > /dev/null 2>&1; then
             echo "already_starred=true" >> "$GITHUB_OUTPUT"
             gh pr comment "$PR_NUMBER" \
               --repo "$GITHUB_REPOSITORY" \
@@ -106,7 +106,13 @@ jobs:
             echo "already_starred=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Write star file directly to master
+      - name: Install Babashka
+        if: |
+          steps.guard.outputs.is_star_request == 'true' &&
+          steps.dedup.outputs.already_starred == 'false'
+        run: curl -s https://raw.githubusercontent.com/babashka/babashka/master/install | sudo bash
+
+      - name: Write star file and update star count on master
         if: |
           steps.guard.outputs.is_star_request == 'true' &&
           steps.dedup.outputs.already_starred == 'false'
@@ -131,7 +137,11 @@ jobs:
             "\"$ACTOR\"" "\"$today\"" \
             > "registry/stars/$LIB_SLUG/$ACTOR.edn"
 
-          git add "registry/stars/$LIB_SLUG/$ACTOR.edn"
+          # Recount all stars so :stars in the library entry is accurate
+          # immediately — GITHUB_TOKEN pushes don't trigger count-stars.yml.
+          bb count-stars
+
+          git add "registry/stars/$LIB_SLUG/$ACTOR.edn" registry/libraries/
           git commit -m "⭐ star: $LIB_SLUG by $ACTOR"
           git push origin master
 
