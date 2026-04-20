@@ -90,9 +90,7 @@
 
 (defn- validate-star-entry
   "Validate a single star entry file against the set of known library slugs.
-   Accepts two formats:
-     - New (CI-written): {:github/user \"alice\" :starred-at \"...\"}
-     - Old (client-written): {:project \"alice/foo\" :starred-at \"...\"}
+   Expected format (CI-written): {:github/user \"alice\" :starred-at \"YYYY-MM-DD\"}
    Returns a seq of error strings (empty = ok)."
   [path known-slugs]
   (let [{:keys [ok err]} (read-edn-file path)]
@@ -100,15 +98,12 @@
       [err]
       (let [lib-slug (fs/file-name (fs/parent path))]
         (cond-> []
-          ;; :starred-at is always required
+          (nil? (:github/user ok))
+          (conj "Missing required key: :github/user")
+
           (nil? (:starred-at ok))
           (conj "Missing required key: :starred-at")
 
-          ;; Must have at least one identity field
-          (not (or (:github/user ok) (:project ok)))
-          (conj "Missing identity field: must have :github/user (new format) or :project (legacy format)")
-
-          ;; Parent dir must correspond to a known library slug
           (not (contains? known-slugs lib-slug))
           (conj (str "Parent directory \"" lib-slug
                      "\" does not match any known library entry")))))))
