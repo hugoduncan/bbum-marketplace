@@ -21,18 +21,24 @@ provides:
 
 ## Constraints
 
-- Must use proper SKILL.md frontmatter (matches existing `skills/bbum-marketplace/SKILL.md`
-  and `~/.psi/agent/skills/*/SKILL.md` conventions):
+- Must use proper SKILL.md frontmatter (matches `~/.psi/agent/skills/*/SKILL.md` conventions):
   - Required: `name`, `description`, `lambda`
   - Optional: `license`, `metadata`, `allowed-tools`
 - Each skill lives in its own directory under `./skills/`
-- Content should be self-contained — no "see the other skill" cross-references
-  (agent may only have one loaded)
+
+## Decisions
+
+- **`skills/bbum-marketplace/`** — delete; replaced entirely by the two new skills
+- **`install`** (adding marketplace tasks to a project) — lives in `bbum-consumer` only;
+  `bbum-publisher` may reference the consumer skill for this step
+- **`star`** — lives in `bbum-consumer` only
 
 ## Acceptance
 
+- `skills/bbum-marketplace/` is deleted
 - `skills/bbum-publisher/SKILL.md` exists, has valid frontmatter, covers the full
-  publish workflow including prereqs, errors, and agent patterns
-- `skills/bbum-consumer/SKILL.md` exists, has valid frontmatter, covers discover /
-  search / info / install / star workflows
+  publish workflow including prereqs, errors, and agent patterns; references
+  `bbum-consumer` for the install step
+- `skills/bbum-consumer/SKILL.md` exists, has valid frontmatter, covers install /
+  discover / search / info / star workflows
 - Both files are well-formed Markdown

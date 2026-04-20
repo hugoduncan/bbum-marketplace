@@ -1,5 +1,6 @@
 # Steps — Add bbum-publisher and bbum-consumer Skills
 
-- [ ] Create `skills/bbum-publisher/SKILL.md` with frontmatter + full publish workflow
-- [ ] Create `skills/bbum-consumer/SKILL.md` with frontmatter + full consumer workflow
-- [ ] Commit both files
+- [ ] Delete `skills/bbum-marketplace/`
+- [ ] Create `skills/bbum-consumer/SKILL.md` — install, discover, search, info, star
+- [ ] Create `skills/bbum-publisher/SKILL.md` — publish workflow; reference bbum-consumer for install
+- [ ] Commit
