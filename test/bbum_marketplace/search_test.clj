@@ -108,4 +108,19 @@
 
   (testing "output shows task column header"
     (let [output (with-out-str (bbum-marketplace.search/run ["lint"] (constantly catalogue)))]
-      (is (clojure.string/includes? output "task")))))
+      (is (clojure.string/includes? output "task"))))
+
+  (testing "--refresh after query is accepted"
+    (let [calls (atom [])
+          cat-fn (fn [opts] (swap! calls conj opts) catalogue)]
+      (with-out-str (bbum-marketplace.search/run ["fmt" "--refresh"] cat-fn))
+      (is (true? (:force (first @calls))))))
+
+  (testing "--refresh before query is accepted"
+    (let [calls (atom [])
+          cat-fn (fn [opts] (swap! calls conj opts) catalogue)]
+      (with-out-str (bbum-marketplace.search/run ["--refresh" "fmt"] cat-fn))
+      (is (true? (:force (first @calls))))
+      (is (clojure.string/includes?
+           (with-out-str (bbum-marketplace.search/run ["--refresh" "fmt"] (constantly catalogue)))
+           "fmt")))))

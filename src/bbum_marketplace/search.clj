@@ -63,8 +63,10 @@
   ([]         (run *command-line-args* cat/catalogue))
   ([args]     (run args cat/catalogue))
   ([args cat-fn]
-   (let [[query & rest-args] args
-         force (boolean (some #{"--refresh"} rest-args))]
+   (let [flags    (set (filter #(str/starts-with? % "--") args))
+         positional (remove #(str/starts-with? % "--") args)
+         query    (first positional)
+         force    (contains? flags "--refresh")]
      (when-not query
        (println "Usage: bb marketplace:search <query>")
        (System/exit 0))

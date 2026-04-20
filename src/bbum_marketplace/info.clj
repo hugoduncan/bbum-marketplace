@@ -83,8 +83,11 @@
 ;;; Entry point
 
 (defn run []
-  (let [[query & rest-args] *command-line-args*
-        force (boolean (some #{"--refresh"} rest-args))]
+  (let [all-args   *command-line-args*
+        flags      (set (filter #(str/starts-with? % "--") all-args))
+        positional (remove #(str/starts-with? % "--") all-args)
+        query      (first positional)
+        force      (contains? flags "--refresh")]
     (when-not query
       (println "Usage: bb marketplace:info <lib>")
       (println "       <lib> is a lib name (e.g. hugoduncan/bbum) or slug (e.g. hugoduncan-bbum)")
